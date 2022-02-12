@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -21,7 +24,8 @@ class MainBody extends HookWidget {
     TextEditingController userController = useTextEditingController();
     TextEditingController channelIdController = useTextEditingController();
     var userState = useState<String>("");
-    var csvState = useState<ByteData?>(null);
+    var csvPathState = useState<String?>(null);
+    var csvDataListState = useState<List<String>>([]);
     var teamsGroupData = useState<List<TeamsGroup>>([]);
     TeamsGroup? selectedTeamsGroup =
         context.watch<TeamsState>().selectedTeamsGroup;
@@ -40,30 +44,23 @@ class MainBody extends HookWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-/*                   Padding(
+                  Padding(
                     padding: const EdgeInsets.only(top: 20, bottom: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.only(bottom: 8.0),
-                          child: Text("Current search params:"),
-                        ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            userState.value.isNotEmpty
-                                ? Text("User email: " + userState.value)
+                            csvPathState.value != null
+                                ? Text("CSV file email rows: " +
+                                    csvDataListState.value.length.toString())
                                 : const SizedBox(),
-                            channelIdController.text.isNotEmpty
-                                ? Text("Teams channel id: " +
-                                    channelIdController.text)
-                                : const SizedBox()
                           ],
                         )
                       ],
                     ),
-                  ), */
+                  ),
                   Row(
                     children: [
                       Expanded(
@@ -111,7 +108,42 @@ class MainBody extends HookWidget {
                       children: [
                         BottomButton(
                             text: "Upload csv file",
-                            onClick: () {
+                            onClick: () async {
+                              FilePickerResult? result =
+                                  await FilePicker.platform.pickFiles(
+                                withData: true,
+                                type: FileType.custom,
+                                allowedExtensions: ['csv'],
+                              );
+
+                              if (result != null) {
+                                PlatformFile file = result.files.first;
+                                if (file.bytes != null) {
+                                  String decoded = utf8.decode(file.bytes!);
+                                  List<String> decodedList =
+                                      decoded.split("\n");
+                                  if (decodedList[0].trim() != "Email") {
+                                    AppState.setError(context,
+                                        "Input csv missing column Email!");
+                                    return;
+                                  }
+                                  decodedList = decodedList.sublist(1);
+
+                                  for (var email in decodedList) {
+                                    if (!RegExp(
+                                            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
+                                        .hasMatch(email)) {
+                                      AppState.setError(context,
+                                          "CSV has invalid email! " + email);
+                                      print("CSV has invalid email! " + email);
+                                      return;
+                                    }
+                                  }
+
+                                  csvDataListState.value = decodedList;
+                                }
+                                csvPathState.value = file.path;
+                              }
                               // "CSV UPLOAD"
                             },
                             disabled: false),
@@ -137,7 +169,7 @@ class MainBody extends HookWidget {
                           text: "Add users to Teams channel",
                           onClick: () {},
                           disabled: channelIdController.text.isEmpty ||
-                              csvState.value == null,
+                              csvPathState.value != null,
                         ),
                       ],
                     ),
