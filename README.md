@@ -1,6 +1,6 @@
 # teams_helper
 
-Flutter Windows app for 
+Flutter Windows app for mass adding users from csv to teams
 
 ## Getting Started
 
