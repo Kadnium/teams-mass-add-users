@@ -1,4 +1,4 @@
-# teams_helper
+# Teams mass add users
 
 Flutter Windows app for mass adding users from csv to teams
 
