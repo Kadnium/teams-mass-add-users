@@ -15,6 +15,7 @@ class TeamsApi {
   ];
   var loginToTeams = ["Connect-MicrosoftTeams"];
   var checkTeams = ["Get-Module -ListAvailable -Name MicrosoftTeams"];
+  var falseCheckTeams = ["Get-Module -ListAvailable -Name Microsofteams"];
 
   Future<bool> isTeamsPackageInstalled() async {
     var process = await Process.run("powershell", checkTeams);
@@ -65,6 +66,7 @@ class TeamsApi {
     }
   }
 
+  // NOT USED CURRENTLY
   void getTeamsForUser(
       {required Function(List<TeamsGroup>) onSuccess,
       required Function(String) onError,
@@ -94,13 +96,33 @@ class TeamsApi {
           }
         }
       }
-      onSuccess(returnList);
+    });
+
+    process.stderr.transform(utf8.decoder).listen((val) {
+      print(val);
+      onError(val);
+    });
+  }
+
+  void addUsersToTeam(
+      {required Function(String) onSuccess,
+      required Function(String) onError,
+      required String groupId,
+      required String filePath}) async {
+    var process = await Process.start("powershell", [
+      "Connect-MicrosoftTeams | Out-Null ; Import-Csv -Path " +
+          filePath +
+          " | foreach{Add-TeamUser -GroupId " +
+          groupId +
+          r" -user $_.email}"
+    ]);
+
+    process.stdout.transform(utf8.decoder).listen((value) {
+      onSuccess(value);
     });
 
     process.stderr.transform(utf8.decoder).listen((val) {
       onError(val);
     });
   }
-
-  void addUsersToChannel() {}
 }

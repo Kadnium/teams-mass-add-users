@@ -1,3 +1,5 @@
+import 'package:desktop_window/desktop_window.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +10,13 @@ import 'package:teams_helper/helpers/components/bottom_button.dart';
 import 'package:teams_helper/models/teams_group_model.dart';
 import 'package:teams_helper/screens/main/main_container.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (defaultTargetPlatform == TargetPlatform.windows) {
+    await DesktopWindow.setMinWindowSize(const Size(712, 712));
+    await DesktopWindow.setMaxWindowSize(const Size(1300, 712));
+  }
+
   runApp(const MyApp());
 }
 

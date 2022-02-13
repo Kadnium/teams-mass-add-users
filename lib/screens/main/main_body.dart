@@ -21,24 +21,43 @@ class MainBody extends HookWidget {
   final TeamsApi teamsApi = TeamsApi();
   @override
   Widget build(BuildContext context) {
-    TextEditingController userController = useTextEditingController();
+    //TextEditingController userController = useTextEditingController();
     TextEditingController channelIdController = useTextEditingController();
-    var userState = useState<String>("");
+    //var userState = useState<String>("");
     var csvPathState = useState<String?>(null);
     var csvDataListState = useState<List<String>>([]);
-    var teamsGroupData = useState<List<TeamsGroup>>([]);
-    TeamsGroup? selectedTeamsGroup =
-        context.watch<TeamsState>().selectedTeamsGroup;
+    // var teamsGroupData = useState<List<TeamsGroup>>([]);
+    var parsedTeamsGroupState = useState<String?>(null);
 
+    useEffect(() {
+      Future.microtask(() {
+        AppState.setError(context, null);
+      });
+    }, [parsedTeamsGroupState.value, csvDataListState.value]);
+/*     TeamsGroup? selectedTeamsGroup =
+        context.watch<TeamsState>().selectedTeamsGroup;
+    
     useEffect(() {
       if (selectedTeamsGroup != null) {
         channelIdController.value =
             TextEditingValue(text: selectedTeamsGroup.groupId);
       }
-    }, [selectedTeamsGroup]);
+    }, [selectedTeamsGroup]); */
+    //https://teams.microsoft.com/l/team/19%3a51f788074710463f84af057b52d3c9bd%40thread.skype/conversations?groupId=6b0e3693-0849-4f82-b1a9-d03037aacffd&tenantId=fa6944af-cc7c-4cd8-9154-c01132798910
+    useEffect(() {
+      Future.microtask(() {
+        AppState.setLoading(context, true);
+        teamsApi.isTeamsPackageInstalled().then((value) {
+          AppState.setLoading(context, false);
+          AppState.setTeamsInstalled(context, value);
+        });
+      });
+    }, []);
+    String? error = context.watch<AppState>().error;
+    bool isTeamsInstalled = context.watch<AppState>().isTeamsInstalled;
     return Center(
       child: context.watch<AppState>().isLoading
-          ? AppSpinner()
+          ? const AppSpinner()
           : Padding(
               padding: const EdgeInsets.symmetric(horizontal: 50),
               child: Column(
@@ -52,6 +71,14 @@ class MainBody extends HookWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            error != null
+                                ? Text(error,
+                                    style: TextStyle(color: Colors.red))
+                                : const SizedBox(),
+                            parsedTeamsGroupState.value != null
+                                ? Text("Parsed teams group id: " +
+                                    parsedTeamsGroupState.value!)
+                                : const SizedBox(),
                             csvPathState.value != null
                                 ? Text("CSV file email rows: " +
                                     csvDataListState.value.length.toString())
@@ -66,16 +93,16 @@ class MainBody extends HookWidget {
                       Expanded(
                         child: Column(
                           children: [
-                            TextFormField(
+                            /*   TextFormField(
                               controller: userController,
                               decoration: InputDecoration(
                                   hintText:
                                       "User account email for group query"),
-                            ),
+                            ), */
                             TextFormField(
                               controller: channelIdController,
-                              decoration:
-                                  InputDecoration(hintText: "Teams channel id"),
+                              decoration: InputDecoration(
+                                  hintText: "Teams group invite link"),
                             ),
                           ],
                         ),
@@ -85,27 +112,50 @@ class MainBody extends HookWidget {
                         child: MaterialButton(
                             color: Theme.of(context).primaryColor,
                             onPressed: () {
-                              userState.value = userController.text;
-                              context.read<TeamsState>().setSelectedGroup(
-                                  TeamsGroup(channelIdController.text, ""));
+                              //userState.value = userController.text;
+                              // context.read<TeamsState>().setSelectedGroup(
+                              //     TeamsGroup(channelIdController.text, ""));
+                              try {
+                                var uri = Uri.parse(channelIdController.text);
+                                String? param = uri.queryParameters["groupId"];
+                                if (param != null && param.isNotEmpty) {
+                                  parsedTeamsGroupState.value = param;
+                                } else {
+                                  AppState.setError(context,
+                                      "Invite link is missing groupId parameter!");
+                                }
+                              } catch (e) {
+                                AppState.setError(
+                                    context, "Invite link was not valid url!");
+                              }
                             },
                             child: const Text("Save")),
                       )
                     ],
                   ),
-                  Expanded(
+/*                   Expanded(
                       flex: 4,
                       child: Padding(
                         padding: const EdgeInsets.only(top: 20),
                         child:
                             TeamsGroupList(teamsGroups: teamsGroupData.value),
-                      )),
+                      )), */
                   const Spacer(),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 20),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
+                        BottomButton(
+                            text: "Install Teams packages (will take a while)",
+                            onClick: () {
+                              AppState.setLoading(context, true);
+                              teamsApi.installPackages(() {
+                                AppState.setTeamsInstalled(context, true);
+                                AppState.setLoading(context, false);
+                              });
+                            },
+                            disabled: isTeamsInstalled),
                         BottomButton(
                             text: "Upload csv file",
                             onClick: () async {
@@ -135,7 +185,6 @@ class MainBody extends HookWidget {
                                         .hasMatch(email)) {
                                       AppState.setError(context,
                                           "CSV has invalid email! " + email);
-                                      print("CSV has invalid email! " + email);
                                       return;
                                     }
                                   }
@@ -146,30 +195,44 @@ class MainBody extends HookWidget {
                               }
                               // "CSV UPLOAD"
                             },
-                            disabled: false),
-                        BottomButton(
+                            disabled: !isTeamsInstalled),
+/*                         BottomButton(
                             text: "Find Teams channels",
                             onClick: () {
                               AppState.setLoading(context, true);
+                              teamsGroupData.value = [];
                               teamsApi.getTeamsForUser(
                                   userEmail: userController.text,
                                   onSuccess: (List<TeamsGroup> data) async {
-                                    await Future.delayed(
-                                        const Duration(seconds: 1));
                                     teamsGroupData.value = data;
                                     AppState.setLoading(context, false);
                                   },
                                   onError: (String err) {
+                                    AppState.setLoading(context, false);
                                     AppState.setError(context, err);
                                   });
                               return;
                             },
-                            disabled: userState.value.isEmpty),
+                            disabled:
+                                userState.value.isEmpty || !isTeamsInstalled), */
                         BottomButton(
                           text: "Add users to Teams channel",
-                          onClick: () {},
-                          disabled: channelIdController.text.isEmpty ||
-                              csvPathState.value != null,
+                          onClick: () {
+                            AppState.setLoading(context, true);
+                            teamsApi.addUsersToTeam(
+                                filePath: csvPathState.value!,
+                                groupId: parsedTeamsGroupState.value!,
+                                onSuccess: (String str) {
+                                  AppState.setLoading(context, false);
+                                },
+                                onError: (String err) {
+                                  AppState.setLoading(context, false);
+                                  AppState.setError(context, err);
+                                });
+                          },
+                          disabled: parsedTeamsGroupState.value == null ||
+                              csvPathState.value == null ||
+                              !isTeamsInstalled,
                         ),
                       ],
                     ),
