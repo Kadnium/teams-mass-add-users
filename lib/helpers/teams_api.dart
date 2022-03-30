@@ -5,6 +5,10 @@ import 'package:teams_helper/models/teams_group_model.dart';
 
 class TeamsApi {
   var installTeams = ["Install-Module", "-Name MicrosoftTeams"];
+  var installNuGet = [
+    "Install-PackageProvider",
+    "-Name NuGet -MinimumVersion 2.8.5.201 -Force"
+  ];
   var execPolicyUnRestricted = [
     "Set-ExecutionPolicy",
     "-ExecutionPolicy Unrestricted"
@@ -40,6 +44,17 @@ class TeamsApi {
 
   void installTeamsPackage(Function() cb) async {
     var process = await Process.start("powershell", installTeams);
+    process.stdin.writeln("y");
+    process.stdout.transform(utf8.decoder).forEach((val) {
+      print(val);
+    }).then((value) {
+      process.kill();
+      cb();
+    });
+  }
+
+  void installNuGetProvider(Function() cb) async {
+    var process = await Process.start("powershell", installNuGet);
     process.stdin.writeln("A");
     process.stdout.transform(utf8.decoder).forEach((val) {
       print(val);
@@ -58,9 +73,11 @@ class TeamsApi {
       setInstallPolicy(execPolicyUnRestricted, () {
         print("Install policy set to unrestricted");
         // On first run will install NuGet
-        installTeamsPackage(() async {
-          print("Teams package was installed!");
-          cb();
+        installNuGetProvider(() async {
+          installTeamsPackage(() async {
+            print("Teams package was installed!");
+            cb();
+          });
         });
       });
     }
